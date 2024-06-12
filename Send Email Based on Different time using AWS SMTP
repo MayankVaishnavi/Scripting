@@ -1,0 +1,143 @@
+# Get the current date and time
+$currentDateTime = Get-Date
+
+# Specify the folder path where you want to search for files
+$folderPath = "C:\Users\Dheeraj\Desktop\test1"
+
+# Initialize variables for time conditions
+$noonTime = Get-Date -Hour 12 -Minute 0
+$eveningTime = Get-Date -Hour 19 -Minute 0
+
+# AWS Detials
+$AWS_ACCESS_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+$AWS_SECRET_KEY = "XXXXXXXXXX/XXXXXXXXXXXXXXXXXXXXX/XsB"
+
+$SECURE_KEY = $(ConvertTo-SecureString -AsPlainText -String $AWS_SECRET_KEY -Force)
+$creds = $(New-Object System.Management.Automation.PSCredential ($AWS_ACCESS_KEY, $SECURE_KEY))
+
+$from = "test@gmail.com"
+$to = "test02@gmail.com"
+$subject = "Files present on the server"
+$body = "The email is about the file names present in the particular directory"
+
+
+
+# Function to get files older than a specified time period
+function Get-OldFiles ($targetHours, $folderPath) {
+    $targetDateTime = $currentDateTime.AddHours(-$targetHours)
+    Get-ChildItem -Path $folderPath -File | Where-Object { $_.LastWriteTime -lt $currentDateTime -and $_.LastWriteTime -gt $targetDateTime }
+}
+
+# Function to export data to CSV
+function Export-DataToCSV ($outputData, $csvFilePath) {
+    $outputData | Export-Csv -Path $csvFilePath -NoTypeInformation
+    Write-Host "Output exported to $csvFilePath"
+}
+
+# Check if the current time is 12:00 PM
+if ($currentDateTime -eq $noonTime) {
+    $outputData = @()
+
+    # Get all directories in the specified folder and its subdirectories
+    $allDirectories = Get-ChildItem -Path $folderPath -Directory -Recurse
+
+    foreach ($directory in $allDirectories) {
+        $currentFolderPath = $directory.FullName
+
+        # Get files in the current directory that are older than the current time up to 17 hours
+        $oldFiles = Get-OldFiles -targetHours 17 -folderPath $currentFolderPath
+
+        # Add directory and file details to output data
+        if ($oldFiles.Count -eq 0) {
+            $outputData += [PSCustomObject]@{
+                DirectoryPath = $currentFolderPath
+                FileName = "No file found"
+            }
+        } else {
+            $outputData += $oldFiles | ForEach-Object {
+                [PSCustomObject]@{
+                    DirectoryPath = $currentFolderPath
+                    FileName = $_.Name
+                }
+            }
+        }
+    }
+
+    # Get files in the root folder that are older than the current time up to 17 hours
+    $oldFilesRoot = Get-OldFiles -targetHours 17 -folderPath $folderPath
+
+    # Add directory and file details to output data for the root folder
+    if ($oldFilesRoot.Count -eq 0) {
+        $outputData += [PSCustomObject]@{
+            DirectoryPath = $folderPath
+            FileName = "No file found"
+        }
+    } else {
+        $outputData += $oldFilesRoot | ForEach-Object {
+            [PSCustomObject]@{
+                DirectoryPath = $folderPath
+                FileName = $_.Name
+            }
+        }
+    }
+
+    # Export output data to CSV
+    Export-DataToCSV -outputData $outputData -csvFilePath "C:\Users\Dheeraj\Desktop\NoonFiles.csv"
+    Send-MailMessage -From $from -To $to -Subject $subject -Body $body -SmtpServer email-smtp.us-east-1.amazonaws.com -Credential $creds -UseSsl -Port 587 -Attachments "C:\Users\Dheeraj\Desktop\NoonFiles.csv"
+    Remove-Item "C:\Users\Dheeraj\Desktop\NoonFiles.csv" -Force
+}
+# Check if the current time is 7:00 PM
+elseif ($currentDateTime -eq $eveningTime) {
+    $outputData = @()
+
+    # Get all directories in the specified folder and its subdirectories
+    $allDirectories = Get-ChildItem -Path $folderPath -Directory -Recurse
+
+    foreach ($directory in $allDirectories) {
+        $currentFolderPath = $directory.FullName
+
+        # Get files in the current directory that are older than the current time up to 7 hours
+        $oldFiles = Get-OldFiles -targetHours 7 -folderPath $currentFolderPath
+
+        # Add directory and file details to output data
+        if ($oldFiles.Count -eq 0) {
+            $outputData += [PSCustomObject]@{
+                DirectoryPath = $currentFolderPath
+                FileName = "No file found"
+            }
+        } else {
+            $outputData += $oldFiles | ForEach-Object {
+                [PSCustomObject]@{
+                    DirectoryPath = $currentFolderPath
+                    FileName = $_.Name
+                }
+            }
+        }
+    }
+
+    # Get files in the root folder that are older than the current time up to 7 hours
+    $oldFilesRoot = Get-OldFiles -targetHours 7 -folderPath $folderPath
+
+    # Add directory and file details to output data for the root folder
+    if ($oldFilesRoot.Count -eq 0) {
+        $outputData += [PSCustomObject]@{
+            DirectoryPath = $folderPath
+            FileName = "No file found"
+        }
+    } else {
+        $outputData += $oldFilesRoot | ForEach-Object {
+            [PSCustomObject]@{
+                DirectoryPath = $folderPath
+                FileName = $_.Name
+            }
+        }
+    }
+
+    # Export output data to CSV
+    Export-DataToCSV -outputData $outputData -csvFilePath "C:\Users\Dheeraj\Desktop\EveningFiles.csv"
+    Send-MailMessage -From $from -To $to -Subject $subject -Body $body -SmtpServer email-smtp.us-east-1.amazonaws.com -Credential $creds -UseSsl -Port 587 -Attachments "C:\Users\Dheeraj\Desktop\EveningFiles.csv"
+    Remove-Item "C:\Users\Dheeraj\Desktop\EveningFiles.csv" -Force
+}
+else {
+    Write-Host "No action taken. Current time does not match specified times."
+}
