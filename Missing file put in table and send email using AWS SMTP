@@ -1,89 +1,105 @@
-# Function to copy missing data from fileA to fileB
-function Copy-Missing-Data {
-    param (
-        [string]$fileA,
-        [string]$fileB
-    )
+# Get the current date and time
+$currentDateTime = Get-Date
 
-    # Read content of fileA and fileB
-    $contentA = Get-Content -Path $fileA
-    $contentB = Get-Content -Path $fileB
+# Specify the folder path where you want to search for files
+$folderPath = "C:\Users\Dheeraj\Desktop\test1"
 
-    # Identify missing data
-    $missingData = Compare-Object -ReferenceObject $contentA -DifferenceObject $contentB | Where-Object { $_.SideIndicator -eq '<=' } | Select-Object -ExpandProperty InputObject
+# AWS Details (replace with secure methods)
+$AWS_ACCESS_KEY = "XXXXXXXXXXXXXXXXXXXXXXXX"
+$AWS_SECRET_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
-    # AWS Details (replace with secure methods)
-    $AWS_ACCESS_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    $AWS_SECRET_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+$SECURE_KEY = $(ConvertTo-SecureString -AsPlainText -String $AWS_SECRET_KEY -Force)
+$creds = $(New-Object System.Management.Automation.PSCredential ($AWS_ACCESS_KEY, $SECURE_KEY))
 
-    $SECURE_KEY = $(ConvertTo-SecureString -AsPlainText -String $AWS_SECRET_KEY -Force)
-    $creds = $(New-Object System.Management.Automation.PSCredential ($AWS_ACCESS_KEY, $SECURE_KEY))
+$from = "test@gmail.com"
+$to = "test01@gmail.com"
+$cc = "test02@gmail.com"
+$subject = "Files present on the server"
 
-    $from = "test@gmail.com"
-    $to = "test2@gmail.com"
-    $cc = "test3@gmail.com"
-    $subject = "Files present on the server"
+# Function to get files older than a specified time period
+function Get-OldFiles ($targetHours, $folderPath, $executionTime) {
+    $targetDateTime = $executionTime.AddHours(-$targetHours)
+    Get-ChildItem -Path $folderPath -File | Where-Object { $_.LastWriteTime -lt $executionTime -and $_.LastWriteTime -gt $targetDateTime }
+}
 
-    # If there is missing data, copy it to fileB
-    if ($missingData.Count -gt 0) {
+# Function to export data to HTML table
+function Export-DataToHTMLTable ($outputData) {
+    $groupedData = $outputData | Group-Object DirectoryPath
 
-        # Copy missing data from fileA to fileB
-        Add-Content -Path $fileB -Value $missingData
+    $htmlTable = "<table style='border-collapse: collapse; width: 100%;'>
+                    <tr style='background-color: #f2f2f2;'>
+                        <th style='border: 1px solid #dddddd; text-align: left; padding: 8px;'>DirectoryPath</th>
+                        <th style='border: 1px solid #dddddd; text-align: left; padding: 8px;'>FileName</th>
+                    </tr>"
 
-        # Define your pattern
-        $secondPattern = "Event URL: /CMSPages/logon.aspx,ReturnUr1.2fAdmin%2FCMSAdministration.aspx"
-        $secondPattern1 = "/CMSPages/logon.aspx?ReturnUr1-%2FCMSModules%2fMedialibrary%2fTools%2fLibrary_Edit_Files.aspx12"
-        $secondPattern2 = "Event URL: /Pages/logon.aspx,ReturnUr1.2fAdmin%2FCMSAdministration.aspx"
+    foreach ($group in $groupedData) {
+        $directoryPath = $group.Name
+        $fileNames = $group.Group.FileName -join ", "
+       
+        $htmlTable += "<tr>
+                        <td style='border: 1px solid #dddddd; text-align: left; padding: 8px;'>$directoryPath</td>
+                        <td style='border: 1px solid #dddddd; text-align: left; padding: 8px;'>$fileNames</td>
+                      </tr>"
+    }
 
+    $htmlTable += "</table>"
+    return $htmlTable
+}
 
-        # Initialize variable to store printed context
-        $printedContext = @()
+# Execute the script logic for searching files up to 24 hours old
+$outputData = @()
 
-        # Function to print 7 lines above and 2 lines below the specified index
-        function PrintContext($startIndex) {
-            $context = @()
-            $context += "===============<br/>"
+# Get all directories in the specified folder and its subdirectories
+$allDirectories = Get-ChildItem -Path $folderPath -Directory -Recurse
 
-            # Print 7 lines above
-            for ($j = $startIndex - 7; $j -le $startIndex; $j++) {
-                if ($j -ge 0) {
-                    $context += $logContent[$j]
-                }
-            }
+foreach ($directory in $allDirectories) {
+    $currentFolderPath = $directory.FullName
 
-            # Print 2 lines below
-            for ($j = $startIndex + 1; $j -le $startIndex + 2 -and $j -lt $logContent.Count; $j++) {
-                $context += $logContent[$j]
-            }
+    # Get files in the current directory that are older than the current time up to 24 hours
+    $oldFiles = Get-OldFiles -targetHours 24 -folderPath $currentFolderPath -executionTime $currentDateTime
 
-            $context += "<br/>===============<br/>"
-            return $context
+    # Add directory and file details to output data
+    if ($oldFiles.Count -eq 0) {
+        $outputData += [PSCustomObject]@{
+            DirectoryPath = $currentFolderPath
+            FileName = "No file found"
         }
-
-        # Get the content of the log file (replace 'yourlogfile.log' with the actual file path)
-        $logContent = $missingData
-
-        # Iterate through each line in the log file
-        for ($i = 0; $i -lt $logContent.Count; $i++) {
-            $line = $logContent[$i].Trim()
-
-            # Check for the second pattern
-            if ($line -eq $secondPattern -or $line -eq $secondPattern1 -or $line -like "$secondPattern2*") {
-                # Print 9 lines above and including the second pattern line
-
-                $context = PrintContext $i
-                $printedContext += $context
+    } else {
+        $outputData += $oldFiles | ForEach-Object {
+            [PSCustomObject]@{
+                DirectoryPath = $currentFolderPath
+                FileName = $_.Name
             }
         }
-
-        # Now, $printedContext contains all the printed context lines, and you can use it as needed.
-       
-       
-        $printedContextString += "<b>The email is about the file names present in the particular directory</b><br/>"
-        $printedContextString += $printedContext -join "`r`n"
-        Send-MailMessage -From $from -To $to -Subject $subject -Cc $cc -Body $printedContextString -SmtpServer email-smtp.us-east-1.amazonaws.com -Credential $creds -UseSsl -Port 587 -BodyAsHtml
     }
 }
 
-# Example usage
-Copy-Missing-Data -fileA "C:\Users\Dheeraj\Desktop\a.log" -fileB "C:\Users\Dheeraj\Desktop\a_1.log"
+# Get files in the root folder that are older than the current time up to 24 hours
+$oldFilesRoot = Get-OldFiles -targetHours 24 -folderPath $folderPath -executionTime $currentDateTime
+
+# Add directory and file details to output data for the root folder
+if ($oldFilesRoot.Count -eq 0) {
+    $outputData += [PSCustomObject]@{
+        DirectoryPath = $folderPath
+        FileName = "No file found"
+    }
+} else {
+    $outputData += $oldFilesRoot | ForEach-Object {
+        [PSCustomObject]@{
+            DirectoryPath = $folderPath
+            FileName = $_.Name
+        }
+    }
+}
+
+# Generate HTML table
+$htmlTable = Export-DataToHTMLTable -outputData $outputData
+
+# Additional line in the body
+$body = "The table contains information about files in the specified folder."
+
+# Concatenate the additional line with the HTML table
+$body += $htmlTable
+
+# Send email with HTML table in the body
+Send-MailMessage -From $from -To $to -Subject $subject -Cc $cc -Body $body -BodyAsHtml -SmtpServer email-smtp.us-east-1.amazonaws.com -Credential $creds -UseSsl -Port 587
