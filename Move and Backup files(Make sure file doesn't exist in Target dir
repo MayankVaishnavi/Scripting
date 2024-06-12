@@ -1,0 +1,22 @@
+# Define source and target directories
+$sourceDir = "C:\Users\Dheeraj\Desktop\test"
+$targetDir = "C:\Users\Dheeraj\Desktop\test1"
+$backupDir = "C:\Users\Dheeraj\Desktop\test2"
+
+# Get all files in the source directory
+$files = Get-ChildItem -Path $sourceDir -File
+
+foreach ($file in $files) {
+    # Construct the path to check in the target directory
+    $targetFilePath = Join-Path $targetDir $file.Name
+
+    if (-not (Test-Path $targetFilePath)) {
+        # File is not present in the target directory, move it to the backup directory
+        Move-Item -Path $file.FullName -Destination $backupDir -Force
+        Write-Host ("File '{0}' moved to '{1}'." -f $file.Name, $backupDir)
+    } else {
+        Write-Host ("File '{0}' already exists in the target directory." -f $file.Name)
+    }
+}
+
+Write-Host "Script completed."
