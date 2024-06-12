@@ -1,0 +1,49 @@
+# Define source and destination folders
+$sourceFolder = "C:\Users\Dheeraj\Desktop\A"
+$destinationFolder = "C:\Users\Dheeraj\Desktop\A1"
+
+# Function to move files and folders created on the current day while preserving directory structure
+function Move-FilesPreserveStructure {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$SourcePath,
+        [Parameter(Mandatory=$true)]
+        [string]$DestinationPath
+    )
+
+    # Get current date
+    $currentDate = Get-Date -Format "yyyy-MM-dd"
+
+    # Get all items (files and folders) in the source path created today
+    $items = Get-ChildItem -Path $SourcePath | Where-Object {$_.CreationTime.Date -eq $currentDate}
+
+    foreach ($item in $items) {
+        # If it's a file, move it to the destination path
+        if (-not $item.PSIsContainer) {
+            $relativePath = $item.FullName.Substring($SourcePath.Length + 1)
+            $destinationFilePath = Join-Path -Path $DestinationPath -ChildPath $relativePath
+            $destinationFolder = Split-Path -Path $destinationFilePath -Parent
+            if (-not (Test-Path $destinationFolder -PathType Container)) {
+                New-Item -Path $destinationFolder -ItemType Directory -Force
+            }
+            Move-Item -Path $item.FullName -Destination $destinationFilePath -Force
+            Write-Host "Moved file $($item.FullName) to $destinationFilePath"
+        }
+        # If it's a directory, recursively call the function
+        else {
+            $destinationSubfolder = Join-Path -Path $DestinationPath -ChildPath $item.Name
+            if (-not (Test-Path $destinationSubfolder -PathType Container)) {
+                New-Item -Path $destinationSubfolder -ItemType Directory -Force
+            }
+            Move-FilesPreserveStructure -SourcePath $item.FullName -DestinationPath $destinationSubfolder
+        }
+    }
+}
+
+# Check if source folder exists
+if (Test-Path $sourceFolder -PathType Container) {
+    # Call function to move files and folders created today while preserving directory structure
+    Move-FilesPreserveStructure -SourcePath $sourceFolder -DestinationPath $destinationFolder
+} else {
+    Write-Host "Source folder $sourceFolder does not exist."
+}
