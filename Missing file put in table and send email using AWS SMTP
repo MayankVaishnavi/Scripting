@@ -1,0 +1,89 @@
+# Function to copy missing data from fileA to fileB
+function Copy-Missing-Data {
+    param (
+        [string]$fileA,
+        [string]$fileB
+    )
+
+    # Read content of fileA and fileB
+    $contentA = Get-Content -Path $fileA
+    $contentB = Get-Content -Path $fileB
+
+    # Identify missing data
+    $missingData = Compare-Object -ReferenceObject $contentA -DifferenceObject $contentB | Where-Object { $_.SideIndicator -eq '<=' } | Select-Object -ExpandProperty InputObject
+
+    # AWS Details (replace with secure methods)
+    $AWS_ACCESS_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    $AWS_SECRET_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    $SECURE_KEY = $(ConvertTo-SecureString -AsPlainText -String $AWS_SECRET_KEY -Force)
+    $creds = $(New-Object System.Management.Automation.PSCredential ($AWS_ACCESS_KEY, $SECURE_KEY))
+
+    $from = "test@gmail.com"
+    $to = "test2@gmail.com"
+    $cc = "test3@gmail.com"
+    $subject = "Files present on the server"
+
+    # If there is missing data, copy it to fileB
+    if ($missingData.Count -gt 0) {
+
+        # Copy missing data from fileA to fileB
+        Add-Content -Path $fileB -Value $missingData
+
+        # Define your pattern
+        $secondPattern = "Event URL: /CMSPages/logon.aspx,ReturnUr1.2fAdmin%2FCMSAdministration.aspx"
+        $secondPattern1 = "/CMSPages/logon.aspx?ReturnUr1-%2FCMSModules%2fMedialibrary%2fTools%2fLibrary_Edit_Files.aspx12"
+        $secondPattern2 = "Event URL: /Pages/logon.aspx,ReturnUr1.2fAdmin%2FCMSAdministration.aspx"
+
+
+        # Initialize variable to store printed context
+        $printedContext = @()
+
+        # Function to print 7 lines above and 2 lines below the specified index
+        function PrintContext($startIndex) {
+            $context = @()
+            $context += "===============<br/>"
+
+            # Print 7 lines above
+            for ($j = $startIndex - 7; $j -le $startIndex; $j++) {
+                if ($j -ge 0) {
+                    $context += $logContent[$j]
+                }
+            }
+
+            # Print 2 lines below
+            for ($j = $startIndex + 1; $j -le $startIndex + 2 -and $j -lt $logContent.Count; $j++) {
+                $context += $logContent[$j]
+            }
+
+            $context += "<br/>===============<br/>"
+            return $context
+        }
+
+        # Get the content of the log file (replace 'yourlogfile.log' with the actual file path)
+        $logContent = $missingData
+
+        # Iterate through each line in the log file
+        for ($i = 0; $i -lt $logContent.Count; $i++) {
+            $line = $logContent[$i].Trim()
+
+            # Check for the second pattern
+            if ($line -eq $secondPattern -or $line -eq $secondPattern1 -or $line -like "$secondPattern2*") {
+                # Print 9 lines above and including the second pattern line
+
+                $context = PrintContext $i
+                $printedContext += $context
+            }
+        }
+
+        # Now, $printedContext contains all the printed context lines, and you can use it as needed.
+       
+       
+        $printedContextString += "<b>The email is about the file names present in the particular directory</b><br/>"
+        $printedContextString += $printedContext -join "`r`n"
+        Send-MailMessage -From $from -To $to -Subject $subject -Cc $cc -Body $printedContextString -SmtpServer email-smtp.us-east-1.amazonaws.com -Credential $creds -UseSsl -Port 587 -BodyAsHtml
+    }
+}
+
+# Example usage
+Copy-Missing-Data -fileA "C:\Users\Dheeraj\Desktop\a.log" -fileB "C:\Users\Dheeraj\Desktop\a_1.log"
