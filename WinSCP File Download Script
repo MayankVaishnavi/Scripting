@@ -1,0 +1,15 @@
+# Connect to the SFTP server
+open sftp://your_username:your_password@your.sftp.server -hostkey="your_host_key"
+
+# Set the remote and local directories
+cd /remote/path/
+lcd C:\local\path\
+
+# Download files modified in the last 24 hours
+get -filemask="*>=1D" -neweronly *
+
+# Disconnect from the SFTP server
+close
+
+# Exit WinSCP
+exit
