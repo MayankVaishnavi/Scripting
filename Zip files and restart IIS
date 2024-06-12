@@ -1,0 +1,74 @@
+# Load the assembly containing the ZipFile class
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+# Define the folder path to be zipped
+$folderPath = "C:\Users\Dheeraj\Desktop\B"
+
+# Define the path where the zip file will be created
+$zipFilePath = "C:\Users\Dheeraj\Desktop\A\Output.zip"
+
+# Attempt to create a new Zip file
+try {
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($folderPath, $zipFilePath)
+    Write-Host "Folder has been zipped successfully to $zipFilePath"
+   
+    # Define the source folder from which files will be copied
+    $sourceFolder = "C:\Users\Dheeraj\Desktop\A"
+   
+    # Define the destination folder where files will be copied
+    $destinationFolder = "C:\Users\Dheeraj\Desktop\B"
+   
+    # Copy files from source folder to destination folder
+    Copy-Item -Path $sourceFolder\* -Destination $destinationFolder -Recurse -Force
+   
+    Write-Host "Files have been copied from $sourceFolder to $destinationFolder"
+
+    # Restart IIS
+    Restart-Service -Name "W3SVC" -Force
+
+      # Wait for IIS service to fully restart
+    $iisService = Get-Service -Name "W3SVC"
+    $maxAttempts = 2
+    $waitTimeSeconds = 10
+    $attempts = 0
+
+    while ($iisService.Status -ne "Running" -and $attempts -lt $maxAttempts) {
+        Write-Host "Waiting for IIS to fully restart..."
+        Start-Sleep -Seconds $waitTimeSeconds
+        $iisService.Refresh()
+        $attempts++
+    }
+
+        if ($iisService.Status -eq "Running") {
+        Write-Host "IIS has fully restarted, proceeding with additional steps."
+   
+        $destinationFolderfinal = "C:\Users\Dheeraj\Desktop\A"
+
+        # Define an array of folder paths to check
+        $foldersToCheck = @("C:\Users\Dheeraj\Desktop\D", "C:\Users\Dheeraj\Desktop\C","C:\Users\Dheeraj\Desktop\E")
+
+        foreach ($folderToCheck in $foldersToCheck) {
+            if (Test-Path $folderToCheck -PathType Container) {
+                # Define the destination folder for the copied folder
+                $destinationFolderPath = Join-Path -Path $destinationFolderfinal -ChildPath (Split-Path -Leaf $folderToCheck)
+               
+                # Copy the folder with its contents to the destination
+                Copy-Item -Path $folderToCheck -Destination $destinationFolderPath -Recurse -Force
+                Write-Host "Folder $folderToCheck and its content have been copied to $destinationFolderPath"
+            }
+            else {
+                Write-Host "Folder $folderToCheck does not exist."
+            }
+        }
+
+        # Restart IIS again
+        Restart-Service -Name "W3SVC" -Force
+        Write-Host "IIS has been restarted again"
+    }
+    else {
+        Write-Host "IIS did not restart within the specified time."
+    }
+}
+catch {
+    Write-Host "Failed to zip the folder. Error: $_"
+}
